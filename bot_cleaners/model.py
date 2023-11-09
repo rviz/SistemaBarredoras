@@ -47,10 +47,11 @@ class RobotLimpieza(Agent):
                 celdas_sucias.append(vecino)
         return celdas_sucias
     
-    def calcular_distancia(coord1, coord2):
+    def calcular_distancia(self, cargador, elemento_actual):
         # Utiliza la fórmula de distancia euclidiana para calcular la distancia entre dos puntos
-        x1, y1 = coord1
-        x2, y2 = coord2
+        x1, y1 = cargador
+        x2 = elemento_actual[0]
+        y2 = elemento_actual[1]
         distancia = math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
         return distancia
 
@@ -70,7 +71,32 @@ class RobotLimpieza(Agent):
         return cargador_mas_cercano
     
     def moverse_a_cargador(self, pos_cargador):
-        self.sig_pos = self.pos
+        #inferior izq
+        if pos_cargador[0]==0 and pos_cargador[1]==0:
+            if self.pos[0]!=0:
+               self.sig_pos = (self.pos[0]-1, self.pos[1])
+            elif self.pos[1]!=0:
+               self.sig_pos = (self.pos[0], self.pos[1]-1)
+ 
+        #superior izq
+        elif pos_cargador[0]==0 and pos_cargador[1]!=0:
+            if self.pos[0]!=0:
+               self.sig_pos = (self.pos[0]-1, self.pos[1])
+            elif self.pos[1]!=pos_cargador[1]:
+               self.sig_pos = (self.pos[0], self.pos[1]+1)
+        #superior der
+        elif pos_cargador[0]!=0 and pos_cargador[1]!=0:
+            if self.pos[0]!=pos_cargador[0]:
+               self.sig_pos = (self.pos[0]+1, self.pos[1])
+            elif self.pos[1]!=pos_cargador[1]:
+               self.sig_pos = (self.pos[0], self.pos[1]+1)
+        #inferior der
+        elif pos_cargador[0]!=0 and pos_cargador[1]==0:
+            if self.pos[0]!=pos_cargador[0]:
+               self.sig_pos = (self.pos[0]+1, self.pos[1])
+            elif self.pos[1]!=pos_cargador[1]:
+               self.sig_pos = (self.pos[0], self.pos[1]-1)
+        
 
     def step(self):
         vecinos = self.model.grid.get_neighbors(
@@ -80,17 +106,17 @@ class RobotLimpieza(Agent):
             if isinstance(vecino, (Mueble, RobotLimpieza)):
                 vecinos.remove(vecino)
 
-        celdas_sucias = self.buscar_celdas_sucia(vecinos)
-
-        if len(celdas_sucias) == 0:
-            self.seleccionar_nueva_pos(vecinos)
-        else:
-            self.limpiar_una_celda(celdas_sucias)
-        
-        if self.carga<20:
+        if self.carga<60:
               print("Buscando cargador")
-              print(self.buscar_cargadores(posiciones_cargadores, self.pos))
-        #     self.moverse_a_cargador()
+              pos_cargador=self.buscar_cargadores(posiciones_cargadores, self.pos)
+              self.moverse_a_cargador(pos_cargador)
+        else:
+            celdas_sucias = self.buscar_celdas_sucia(vecinos)
+
+            if len(celdas_sucias) == 0:
+               self.seleccionar_nueva_pos(vecinos)
+            else:
+               self.limpiar_una_celda(celdas_sucias)
 
     def advance(self):
         if self.pos != self.sig_pos:
@@ -119,25 +145,25 @@ class Habitacion(Model):
         self.grid = MultiGrid(M, N, False)
         self.schedule = SimultaneousActivation(self)
 
-        posiciones_disponibles = [pos for _, pos in self.grid.coord_iter()]
+
+    # posicionamiento de cargadores
+        global posiciones_cargadores
+        posiciones_cargadores= ((0, 0), (0, N-1), (M-1, 0), (M-1, N-1))
+
+        for id, pos in enumerate(posiciones_cargadores):
+            cargador = Cargador(int(f"{num_agentes}0{id}") + 1, self)
+            self.grid.place_agent(cargador, pos)
+
+        posiciones_disponibles = [pos for _, pos in self.grid.coord_iter() if pos not in posiciones_cargadores]
 
         # Posicionamiento de muebles
         num_muebles = int(M * N * porc_muebles)
         posiciones_muebles = self.random.sample(posiciones_disponibles, k=num_muebles)
-
-        # posicionamiento de cargadores
-        global posiciones_cargadores
-        posiciones_cargadores= [(0, 0), (0, N-1), (M-1, 0), (M-1, N-1)]
-
-        for id in range(num_cargadores):
-            cargador = Cargador(id, self)
-            self.grid.place_agent(cargador, posiciones_cargadores[id])
-            posiciones_disponibles.remove(posiciones_cargadores[id])
-
         for id, pos in enumerate(posiciones_muebles):
             mueble = Mueble(int(f"{num_agentes}0{id}") + 1, self)
             self.grid.place_agent(mueble, pos)
             posiciones_disponibles.remove(pos)
+
 
         # Posicionamiento de celdas sucias
         self.num_celdas_sucias = int(M * N * porc_celdas_sucias)

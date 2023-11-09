@@ -1,5 +1,4 @@
 import random
-
 import mesa
 
 from .model import Habitacion, RobotLimpieza, Celda, Mueble, Cargador
