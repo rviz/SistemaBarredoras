@@ -46,14 +46,8 @@ class RobotLimpieza(Agent):
             # Si no hay posiciones libres, permanecer en la posición actual
             self.sig_pos = self.pos
 
-
-
     @staticmethod
     def buscar_celdas_sucia(lista_de_vecinos):
-        # #Opción 1
-        # return [vecino for vecino in lista_de_vecinos
-        #                 if isinstance(vecino, Celda) and vecino.sucia]
-        # #Opción 2
         celdas_sucias = list()
         for vecino in lista_de_vecinos:
             if isinstance(vecino, Celda) and vecino.sucia:
@@ -68,6 +62,18 @@ class RobotLimpieza(Agent):
         distancia = math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
         return distancia
 
+    def buscar_cercana(self,pos_cargador,posiciones):
+
+        distancia_minima = float('inf')
+        pos_mas_cercano = None
+
+        for posicion in posiciones:
+            distancia = self.calcular_distancia(posicion, pos_cargador)
+            if distancia < distancia_minima:
+                distancia_minima = distancia
+                pos_mas_cercano = posicion
+        return pos_mas_cercano
+    
     def buscar_cargadores(self,elemento_actual):
         if not self.model.posiciones_cargadores:
             return None  # Si la lista de posiciones de cargadores está vacía, no hay cargadores disponibles
@@ -83,42 +89,14 @@ class RobotLimpieza(Agent):
         return cargador_mas_cercano
     
     def moverse_a_cargador(self, pos_cargador, celdas_sucias, vecinos):
-           #inferior izq
-        if pos_cargador[0]==0 and pos_cargador[1]==0:
-            if self.pos[0]!=0 and self.pos[1]!=0 :
-               self.sig_pos = (self.pos[0]-1, self.pos[1]-1) 
-            elif self.pos[0]!=0 and self.pos[1]==0:
-               self.sig_pos = (self.pos[0]-1, self.pos[1])
-            elif self.pos[0]==0 and self.pos[1]!=0:
-               self.sig_pos = (self.pos[0], self.pos[1]-1)
 
-        #superior izq
-        elif pos_cargador[0]==0 and pos_cargador[1]!=0:
-            if self.pos[0]!=0 and self.pos[1]!=0 :
-               self.sig_pos = (self.pos[0]-1, self.pos[1]+1)
-            elif self.pos[0]==0 and self.pos[1]!=pos_cargador[1]:
-               self.sig_pos = (self.pos[0], self.pos[1]+1)
-            elif self.pos[0]!=0 and self.pos[1]==pos_cargador[1]:
-               self.sig_pos = (self.pos[0]-1, self.pos[1])
+        pos_vecinos=[]
+        vecinos2 = self.model.grid.get_neighbors(
+            self.pos, moore=True, include_center=False)
+        for vecino in vecinos2:
+            pos_vecinos.append(vecino.pos)
+        self.sig_pos=self.buscar_cercana(pos_cargador,pos_vecinos)
 
-        #superior der
-        elif pos_cargador[0]!=0 and pos_cargador[1]!=0:
-            if self.pos[0]!=0 and self.pos[1]!=0 :
-               self.sig_pos = (self.pos[0]+1, self.pos[1]+1)
-            elif self.pos[0]==pos_cargador[0] and self.pos[1]!=pos_cargador[1]:
-               self.sig_pos = (self.pos[0], self.pos[1]+1)
-            elif self.pos[0]!=pos_cargador[0] and self.pos[1]==pos_cargador[1]:
-               self.sig_pos = (self.pos[0]+1, self.pos[1])
-
-        #inferior der
-        elif pos_cargador[0]!=0 and pos_cargador[1]==0:
-            if self.pos[0]!=0 and self.pos[1]!=0 :
-               self.sig_pos = (self.pos[0]+1, self.pos[1]-1)
-            elif self.pos[0]==pos_cargador[0] and self.pos[1]!=0:
-               self.sig_pos = (self.pos[0], self.pos[1]-1)
-            elif self.pos[0]!=pos_cargador[0] and self.pos[1]==0:
-               self.sig_pos = (self.pos[0]+1, self.pos[1])
-        
         #si hay obstaculos
         posiciones_ocupadas = [robot.sig_pos for robot in self.model.schedule.agents if isinstance(robot, RobotLimpieza) and robot != self]
         robots = [robot for robot in self.model.schedule.agents if isinstance(robot, RobotLimpieza)]
@@ -132,15 +110,11 @@ class RobotLimpieza(Agent):
                         self.sig_pos=self.pos
                     elif robot.carga>= self.carga:
                         robot.sig_pos=robot.pos
-        else:
+        elif self.sig_pos not in self.model.posiciones_cargadores :
             if posiciones_libres:
                 if self.sig_pos not in posiciones_libres:
-                    print(self.sig_pos)
                     if self.sig_pos not in self.model.posiciones_cargadores:
-                        while self.sig_pos not in posiciones_libres and self.sig_pos not in self.model.posiciones_cargadores:   
-                            mov1 = np.random.choice([0, 1, -1], size=1, replace=True)
-                            mov2 = np.random.choice([0, 1, -1], size=1, replace=True)
-                            self.sig_pos = (self.pos[0]+int(mov1), self.pos[1]+int(mov2))
+                        self.sig_pos=self.buscar_cercana(pos_cargador,posiciones_libres)
             else:
                 self.sig_pos=self.pos
 
@@ -201,9 +175,6 @@ class RobotLimpieza(Agent):
                 self.carga -= 1
             
     
-    
-        
-
 class Habitacion(Model):
     def __init__(self, M: int, N: int,
                  num_agentes: int = 5,
@@ -295,11 +266,6 @@ class Habitacion(Model):
         return True
 
 def get_grid(model: Model) -> np.ndarray:
-    """
-    Método para la obtención de la grid y representarla en un notebook
-    :param model: Modelo (entorno)
-    :return: grid
-    """
     grid = np.zeros((model.grid.width, model.grid.height))
     for cell in model.grid.coord_iter():
         cell_content, pos = cell
@@ -317,11 +283,6 @@ def get_cargas(model: Model):
 
 
 def get_sucias(model: Model) -> int:
-    """
-    Método para determinar el número total de celdas sucias
-    :param model: Modelo Mesa
-    :return: número de celdas sucias
-    """
     sum_sucias = 0
     for cell in model.grid.coord_iter():
         cell_content, pos = cell
