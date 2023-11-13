@@ -26,6 +26,7 @@ class RobotLimpieza(Agent):
         super().__init__(unique_id, model)
         self.sig_pos = None
         self.movimientos = 0
+        self.recargas = 0
         self.carga = 100
 
     def limpiar_una_celda(self, lista_de_celdas_sucias):
@@ -79,7 +80,6 @@ class RobotLimpieza(Agent):
             if distancia < distancia_minima:
                 distancia_minima = distancia
                 cargador_mas_cercano = cargador
-        print(cargador_mas_cercano)
         return cargador_mas_cercano
     
     def moverse_a_cargador(self, pos_cargador, celdas_sucias, vecinos):
@@ -123,15 +123,11 @@ class RobotLimpieza(Agent):
         posiciones_ocupadas = [robot.sig_pos for robot in self.model.schedule.agents if isinstance(robot, RobotLimpieza) and robot != self]
         robots = [robot for robot in self.model.schedule.agents if isinstance(robot, RobotLimpieza)]
         posiciones_libres = [vecino.pos for vecino in vecinos if vecino.pos not in posiciones_ocupadas]
-        print(posiciones_libres)
 
         if self.sig_pos in self.model.posiciones_cargadores and self.sig_pos in posiciones_ocupadas:
             for robot in robots:
                 if robot.sig_pos==self.sig_pos:
-                    print(self.pos)
-                    print(self.sig_pos)
-                    print(robot.pos)
-                    print(robot.sig_pos)
+                   
                     if robot.carga<self.carga or robot.pos==pos_cargador:
                         self.sig_pos=self.pos
                     elif robot.carga>= self.carga:
@@ -141,7 +137,6 @@ class RobotLimpieza(Agent):
                 if self.sig_pos not in posiciones_libres:
                     print(self.sig_pos)
                     if self.sig_pos not in self.model.posiciones_cargadores:
-                        print("h1")
                         while self.sig_pos not in posiciones_libres and self.sig_pos not in self.model.posiciones_cargadores:   
                             mov1 = np.random.choice([0, 1, -1], size=1, replace=True)
                             mov2 = np.random.choice([0, 1, -1], size=1, replace=True)
@@ -179,6 +174,7 @@ class RobotLimpieza(Agent):
             if self.carga<99: #cargar
                 self.cargar()  
             else: #ya termino de cargar
+                self.recargas+=1
                 if len(celdas_sucias) == 0:
                     self.seleccionar_nueva_pos(vecinos)
                 else:
@@ -214,7 +210,6 @@ class Habitacion(Model):
                  porc_celdas_sucias: float = 0.6,
                  porc_muebles: float = 0.1,
                  modo_pos_inicial: str = 'Fija',
-                 num_cargadores: int = 4
                  ):
 
         self.num_agentes = num_agentes
@@ -276,13 +271,28 @@ class Habitacion(Model):
 
         self.schedule.step()
 
+        if self.todoLimpio():
+            print(f"At step {self.schedule.steps}: All cells are clean!")
+
+    # Imprimir los movimientos de cada agente
+            for robot in self.schedule.agents :
+                if isinstance(robot, RobotLimpieza):
+                    dic=get_movimientos(robot)                   
+                    dic2=get_recargas(robot)
+
+                    for agente_id, movimientos in dic.items():
+                        print(f"Agente {agente_id}: {movimientos} movimientos.")
+                    for agente_id, recargas in dic2.items():
+                        print(f"Agente {agente_id}: {recargas} recargas.")
+            self.running = False  # Detener la simulación
+
+
     def todoLimpio(self):
-        for (content, x, y) in self.grid.coord_iter():
+        for (content, x) in self.grid.coord_iter():
             for obj in content:
                 if isinstance(obj, Celda) and obj.sucia:
                     return False
         return True
-
 
 def get_grid(model: Model) -> np.ndarray:
     """
@@ -324,5 +334,9 @@ def get_sucias(model: Model) -> int:
 def get_movimientos(agent: Agent) -> dict:
     if isinstance(agent, RobotLimpieza):
         return {agent.unique_id: agent.movimientos}
-    # else:
-    #    return 0
+    
+def get_recargas(agent: Agent) -> dict:
+    if isinstance(agent, RobotLimpieza):
+        return {agent.unique_id: agent.recargas}
+
+
