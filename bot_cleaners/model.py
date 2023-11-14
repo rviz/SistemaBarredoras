@@ -95,7 +95,7 @@ class RobotLimpieza(Agent):
             self.pos, moore=True, include_center=False)
         for vecino in vecinos2:
             pos_vecinos.append(vecino.pos)
-        self.sig_pos=self.buscar_cercana(pos_cargador,pos_vecinos)
+        self.sig_pos=self.buscar_cercana(pos_cargador,pos_vecinos)            
 
         #si hay obstaculos
         posiciones_ocupadas = [robot.sig_pos for robot in self.model.schedule.agents if isinstance(robot, RobotLimpieza) and robot != self]
@@ -110,8 +110,9 @@ class RobotLimpieza(Agent):
                         self.sig_pos=self.pos
                     elif robot.carga>= self.carga:
                         robot.sig_pos=robot.pos
+                        
         elif self.sig_pos not in self.model.posiciones_cargadores :
-            if posiciones_libres:
+            if len(posiciones_libres)!=0:
                 if self.sig_pos not in posiciones_libres:
                     if self.sig_pos not in self.model.posiciones_cargadores:
                         self.sig_pos=self.buscar_cercana(pos_cargador,posiciones_libres)
@@ -233,8 +234,8 @@ class Habitacion(Model):
 
 
         self.datacollector = DataCollector(
-            model_reporters={"Grid": get_grid, "Cargas": get_cargas,
-                             "CeldasSucias": get_sucias},
+            model_reporters={"Grid": get_grid, "Movimientos":get_movimientos, "CeldasSucias": get_sucias, "Recargas":get_recargas
+                             },
         )
 
     def step(self):
@@ -245,16 +246,6 @@ class Habitacion(Model):
         if self.todoLimpio():
             print(f"At step {self.schedule.steps}: All cells are clean!")
 
-    # Imprimir los movimientos de cada agente
-            for robot in self.schedule.agents :
-                if isinstance(robot, RobotLimpieza):
-                    dic=get_movimientos(robot)                   
-                    dic2=get_recargas(robot)
-
-                    for agente_id, movimientos in dic.items():
-                        print(f"Agente {agente_id}: {movimientos} movimientos.")
-                    for agente_id, recargas in dic2.items():
-                        print(f"Agente {agente_id}: {recargas} recargas.")
             self.running = False  # Detener la simulación
 
 
@@ -289,15 +280,23 @@ def get_sucias(model: Model) -> int:
         for obj in cell_content:
             if isinstance(obj, Celda) and obj.sucia:
                 sum_sucias += 1
+    print(sum_sucias / model.num_celdas_sucias)
     return sum_sucias / model.num_celdas_sucias
 
 
-def get_movimientos(agent: Agent) -> dict:
-    if isinstance(agent, RobotLimpieza):
-        return {agent.unique_id: agent.movimientos}
+def get_movimientos(model: Model) -> int:
+    movimientoT=0
+    for robot in model.schedule.agents:
+        if isinstance(robot, RobotLimpieza):
+            movimientoT=movimientoT+robot.movimientos
+    print(movimientoT)
+    return movimientoT
     
-def get_recargas(agent: Agent) -> dict:
-    if isinstance(agent, RobotLimpieza):
-        return {agent.unique_id: agent.recargas}
-
-
+    
+def get_recargas(model: Model) -> int:
+    recargasT=0
+    for robot in model.schedule.agents:
+        if isinstance(robot, RobotLimpieza):
+            recargasT=recargasT+robot.recargas
+    print(recargasT)
+    return recargasT
