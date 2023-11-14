@@ -12,7 +12,6 @@ class Celda(Agent):
         super().__init__(unique_id, model)
         self.sucia = suciedad
 
-
 class Cargador(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
@@ -35,12 +34,12 @@ class RobotLimpieza(Agent):
         self.sig_pos = celda_a_limpiar.pos
 
     def seleccionar_nueva_pos(self, lista_de_vecinos):
+        #Eliminar de posiciones libre las posiciones que otros robots ya eligieron como su siguente posicion
         posiciones_ocupadas = [robot.sig_pos for robot in self.model.schedule.agents if isinstance(robot, RobotLimpieza)]
         posiciones_libres = [vecino for vecino in lista_de_vecinos if vecino.pos not in posiciones_ocupadas]
 
         if posiciones_libres:
             nueva_pos = self.random.choice(posiciones_libres).pos
-            # Evitar colisiones marcando la posición elegida
             self.sig_pos = nueva_pos
         else:
             # Si no hay posiciones libres, permanecer en la posición actual
@@ -89,7 +88,7 @@ class RobotLimpieza(Agent):
         return cargador_mas_cercano
     
     def moverse_a_cargador(self, pos_cargador, celdas_sucias, vecinos):
-
+        #Inicialmente se elige la posicion vecina que acerque mas al cargador
         pos_vecinos=[]
         vecinos2 = self.model.grid.get_neighbors(
             self.pos, moore=True, include_center=False)
@@ -97,20 +96,21 @@ class RobotLimpieza(Agent):
             pos_vecinos.append(vecino.pos)
         self.sig_pos=self.buscar_cercana(pos_cargador,pos_vecinos)            
 
-        #si hay obstaculos
+        #Eliminar de posiciones libre las posiciones que otros robots ya eligieron como su siguente posicion
         posiciones_ocupadas = [robot.sig_pos for robot in self.model.schedule.agents if isinstance(robot, RobotLimpieza) and robot != self]
         robots = [robot for robot in self.model.schedule.agents if isinstance(robot, RobotLimpieza)]
         posiciones_libres = [vecino.pos for vecino in vecinos if vecino.pos not in posiciones_ocupadas]
 
+        #Si la siguente posicion es de un cargador y ya hay otro robot que tiene su siguente posicion ahi
         if self.sig_pos in self.model.posiciones_cargadores and self.sig_pos in posiciones_ocupadas:
             for robot in robots:
-                if robot.sig_pos==self.sig_pos:
-                   
+                #Negociacion entre el otro robot y self
+                if robot.sig_pos==self.sig_pos: 
                     if robot.carga<self.carga or robot.pos==pos_cargador:
                         self.sig_pos=self.pos
                     elif robot.carga>= self.carga:
                         robot.sig_pos=robot.pos
-                        
+        #Si la siguente posicion no es un cargador se busca la otra vez la posicion mas cercana
         elif self.sig_pos not in self.model.posiciones_cargadores :
             if len(posiciones_libres)!=0:
                 if self.sig_pos not in posiciones_libres:
@@ -119,7 +119,7 @@ class RobotLimpieza(Agent):
             else:
                 self.sig_pos=self.pos
 
-        #si esta sucia    
+        #si esta sucia se limpia 
         for celda in celdas_sucias:
             if self.sig_pos == celda.pos:
                 celda.sucia=False
@@ -142,20 +142,19 @@ class RobotLimpieza(Agent):
             if vecino.pos in self.model.posiciones_cargadores:
                 vecinos.remove(vecino)
         
-
         celdas_sucias = self.buscar_celdas_sucia(vecinos)
 
-        if self.pos in self.model.posiciones_cargadores:#esta en un cargador
+        if self.pos in self.model.posiciones_cargadores:# si esta en un cargador
             if self.carga<99: #cargar
                 self.cargar()  
-            else: #ya termino de cargar
+            else: #ya termino de cargar, se mueve
                 self.recargas+=1
                 if len(celdas_sucias) == 0:
                     self.seleccionar_nueva_pos(vecinos)
                 else:
                     self.limpiar_una_celda(celdas_sucias)
         else:#no esta en un cargador
-            if self.carga<60:
+            if self.carga<30:#la carga es menor a 30, busca cargador y se mueve a el
                 pos_cargador=self.buscar_cargadores(self.pos)
                 self.moverse_a_cargador(pos_cargador, celdas_sucias, vecinos)
             else:
@@ -169,9 +168,7 @@ class RobotLimpieza(Agent):
             self.movimientos += 1
 
         if self.carga > 0:
-           
             self.model.grid.move_agent(self, self.sig_pos)
-            
             if self.pos not in self.model.posiciones_cargadores:
                 self.carga -= 1
             
@@ -191,7 +188,6 @@ class Habitacion(Model):
         self.grid = MultiGrid(M, N, False)
         self.schedule = SimultaneousActivation(self)
 
-
     # posicionamiento de cargadores
         self.posiciones_cargadores= ((0, 0), (0, N-1), (M-1, 0), (M-1, N-1))
 
@@ -209,7 +205,6 @@ class Habitacion(Model):
             mueble = Mueble(int(f"{num_agentes}0{id}") + 1, self)
             self.grid.place_agent(mueble, pos)
             posiciones_disponibles.remove(pos)
-
 
         # Posicionamiento de celdas sucias
         self.num_celdas_sucias = int(M * N * porc_celdas_sucias)
@@ -243,9 +238,7 @@ class Habitacion(Model):
 
         self.schedule.step()
 
-        if self.todoLimpio():
-            print(f"At step {self.schedule.steps}: All cells are clean!")
-
+        if self.todoLimpio(): #si ya esta todo limpio se detiene 
             self.running = False  # Detener la simulación
 
 
@@ -280,7 +273,6 @@ def get_sucias(model: Model) -> int:
         for obj in cell_content:
             if isinstance(obj, Celda) and obj.sucia:
                 sum_sucias += 1
-    print(sum_sucias / model.num_celdas_sucias)
     return sum_sucias / model.num_celdas_sucias
 
 
@@ -289,7 +281,6 @@ def get_movimientos(model: Model) -> int:
     for robot in model.schedule.agents:
         if isinstance(robot, RobotLimpieza):
             movimientoT=movimientoT+robot.movimientos
-    print(movimientoT)
     return movimientoT
     
     
@@ -298,5 +289,4 @@ def get_recargas(model: Model) -> int:
     for robot in model.schedule.agents:
         if isinstance(robot, RobotLimpieza):
             recargasT=recargasT+robot.recargas
-    print(recargasT)
     return recargasT
